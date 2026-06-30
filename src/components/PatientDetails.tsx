@@ -2,6 +2,7 @@ import React, { useState, useTransition } from "react";
 import { PatientRecord } from "../types";
 import { EcgMonitor } from "./EcgMonitor";
 import { EchoVisualizer } from "./EchoVisualizer";
+import { predictCadFromClinicalTrial } from "../dataset";
 import { 
   Heart, 
   Activity, 
@@ -31,6 +32,18 @@ export function PatientDetails({ patient, onDelete, onUpdateInsights }: PatientD
   const [recommendations, setRecommendations] = useState<string[]>(patient.recommendations || []);
   const [newRecommendation, setNewRecommendation] = useState("");
   const [isPending, startTransition] = useTransition();
+
+  // Run KNN similarity search on current patient parameter values against the provided clinical trial dataset
+  const matchResults = predictCadFromClinicalTrial({
+    age: patient.age,
+    gender: patient.gender,
+    systolicBp: patient.systolicBp,
+    cholesterol: patient.cholesterol,
+    diabetes: patient.diabetes,
+    smoking: patient.smoking,
+    echoLvef: patient.echoLvef,
+    echoLvedd: patient.echoLvedd ? patient.echoLvedd / 10 : 5.0 // Convert mm to cm for the dataset model
+  });
 
   // Color alerts mapper
   const alertConfig = {
@@ -266,6 +279,40 @@ export function PatientDetails({ patient, onDelete, onUpdateInsights }: PatientD
                     </button>
                   </div>
                 )}
+              </div>
+
+              {/* Dataset Trial Patient Profile Matching */}
+              <div className="pt-4 border-t border-slate-900 mt-4 space-y-3">
+                <span className="block text-[10px] font-mono font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                  Clinical Trial Database Match Telemetry
+                </span>
+                <p className="text-[10px] text-slate-500 leading-normal">
+                  Matched closest historical biometric outcomes from the coronary artery disease reference study:
+                </p>
+
+                <div className="space-y-2">
+                  {matchResults.closestMatches.slice(0, 2).map((item, idx) => (
+                    <div key={idx} className="bg-slate-950/40 p-2.5 rounded border border-slate-900 text-[11px] flex justify-between items-center">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-400">
+                          <span>Study Case Match #{idx + 1}</span>
+                          <span className="text-slate-600">•</span>
+                          <span>Similarity: <strong className="text-slate-200">{Math.round((1 - item.distance) * 100)}%</strong></span>
+                        </div>
+                        <div className="font-mono text-slate-500 text-[10px] flex gap-2">
+                          <span>Age: <strong className="text-slate-300">{item.record.age}y</strong></span>
+                          <span>Sex: <strong className="text-slate-300">{item.record.gender[0]}</strong></span>
+                          <span>LVEF: <strong className="text-slate-300">{item.record.lvef}%</strong></span>
+                          <span>BP: <strong className="text-slate-300">{item.record.bp}</strong></span>
+                        </div>
+                      </div>
+                      <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded border ${item.record.cadRisk ? 'bg-rose-950/20 border-rose-900/30 text-rose-400' : 'bg-emerald-950/20 border-emerald-900/30 text-emerald-400'}`}>
+                        {item.record.cadRisk ? "CAD" : "Normal"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

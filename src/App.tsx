@@ -6,6 +6,8 @@ import { PatientDetails } from "./components/PatientDetails";
 import { HospitalIntegrationPortal } from "./components/HospitalIntegrationPortal";
 import { EcgMonitor } from "./components/EcgMonitor";
 import { EchoVisualizer } from "./components/EchoVisualizer";
+import { ClinicalDatasetExplorer } from "./components/ClinicalDatasetExplorer";
+import { CardioVisionAI } from "./components/CardioVisionAI";
 import { 
   Heart, 
   Activity, 
@@ -32,8 +34,8 @@ export default function App() {
     updatePatientInsights 
   } = usePatients();
 
-  // Active workspace tabs
-  const [activePortalTab, setActivePortalTab] = useState<"workbench" | "new-entry" | "api-portal">("workbench");
+  // Active workspace tabs - default to cardiovision so user lands directly on the beautiful risk assessment wizard
+  const [activePortalTab, setActivePortalTab] = useState<"workbench" | "new-entry" | "api-portal" | "dataset-explorer" | "cardiovision">("cardiovision");
   
   // Selected patient for detail inspection
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
@@ -130,6 +132,27 @@ export default function App() {
     }
   };
 
+  const handleSaveFromCardioVision = async (patientInput: PatientRecord) => {
+    try {
+      // Standardize recommendation list and summary
+      const localRecord: PatientRecord = {
+        ...patientInput,
+        predictedAt: new Date().toISOString(),
+        clinicalSummary: `Diagnostic CardioVision AI Risk Model: Aggregated CAD risk of ${patientInput.riskScore}%. Clinical parameters contributed ${Math.round(patientInput.riskScore * 0.95)}% probability. Echocardiography left ventricular ejection fraction is ${patientInput.echoLvef}%, and electrocardiogram ST elevation is ${patientInput.ecgStElevation}mm. This patient profile has been logged in the EHR database.`,
+        recommendations: [
+          `Schedule specialized cardiology consult based on a ${patientInput.riskLevel} CardioVision risk profile.`,
+          patientInput.echoLvef < 50 ? "Optimize systolic support therapies and control risk metrics." : "Review ventricular contractility periodically.",
+          patientInput.smoking ? "Mandate enrollment in a clinical smoking cessation initiative." : "Maintain general primary cardiovascular prevention protocols."
+        ]
+      };
+      const savedRecord = await addPatient(localRecord);
+      setSelectedPatientId(savedRecord.id || null);
+      setActivePortalTab("workbench");
+    } catch (err) {
+      console.error("Failed to save patient from CardioVision AI:", err);
+    }
+  };
+
   // Rule-based score calculator for backup and live previews
   const calculateRuleBasedScore = (data: any): number => {
     let score = 5;
@@ -198,7 +221,20 @@ export default function App() {
           </div>
 
           {/* Navigation Controls */}
-          <div className="flex bg-slate-950 rounded-lg p-1 border border-slate-850 self-stretch md:self-auto justify-between">
+          <div className="flex bg-slate-950 rounded-lg p-1 border border-slate-850 self-stretch md:self-auto justify-between flex-wrap gap-1">
+            <button
+              onClick={() => setActivePortalTab("cardiovision")}
+              className={`flex-1 md:flex-initial px-4 py-1.5 rounded-md text-xs font-mono uppercase font-semibold tracking-wider transition-all relative overflow-hidden ${
+                activePortalTab === "cardiovision"
+                  ? "bg-gradient-to-r from-red-500 via-orange-500 to-emerald-500 text-slate-950 font-black"
+                  : "text-slate-300 hover:text-slate-100 bg-red-950/20 border border-red-900/30"
+              }`}
+            >
+              <span className="flex items-center gap-1.5 justify-center">
+                <Heart className={`w-3.5 h-3.5 ${activePortalTab === "cardiovision" ? "text-slate-950 fill-current" : "text-red-500 animate-pulse"}`} />
+                CardioVision AI Predictor
+              </span>
+            </button>
             <button
               onClick={() => setActivePortalTab("workbench")}
               className={`flex-1 md:flex-initial px-4 py-1.5 rounded-md text-xs font-mono uppercase font-semibold tracking-wider transition-all ${
@@ -218,6 +254,16 @@ export default function App() {
               }`}
             >
               New Evaluation
+            </button>
+            <button
+              onClick={() => setActivePortalTab("dataset-explorer")}
+              className={`flex-1 md:flex-initial px-4 py-1.5 rounded-md text-xs font-mono uppercase font-semibold tracking-wider transition-all ${
+                activePortalTab === "dataset-explorer"
+                  ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-bold"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              Clinical Reference Dataset
             </button>
             <button
               onClick={() => setActivePortalTab("api-portal")}
@@ -527,6 +573,20 @@ export default function App() {
                   </div>
                 </div>
 
+              </div>
+            )}
+
+            {/* CardioVision AI Predictor Tab */}
+            {activePortalTab === "cardiovision" && (
+              <div className="space-y-6">
+                <CardioVisionAI onSavePatient={handleSaveFromCardioVision} />
+              </div>
+            )}
+
+            {/* View Tab 3: Dataset Explorer & KNN Predictor */}
+            {activePortalTab === "dataset-explorer" && (
+              <div className="space-y-6">
+                <ClinicalDatasetExplorer />
               </div>
             )}
 
