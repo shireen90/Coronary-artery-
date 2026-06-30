@@ -1,0 +1,6 @@
+{
+  "name": "CAD Risk Predictor",
+  "description": "Coronary Artery Disease risk prediction tool for clinicians, analyzing ECG and Echocardiogram data with predictive analytics, real-time risk scoring, color-coded alerts, and secure AI-generated clinical insights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
