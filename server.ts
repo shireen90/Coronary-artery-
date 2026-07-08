@@ -42,6 +42,7 @@ function calculateRiskScore(data: any): { score: number; level: 'Critical' | 'Hi
 
   // Comorbidities
   if (data.diabetes) scorePoints += 8;
+  if (data.hypertension) scorePoints += 6;
   if (data.smoking) scorePoints += 6;
   if (data.familyHistory) scorePoints += 6;
 
@@ -147,11 +148,11 @@ app.post("/api/analyze", async (req, res) => {
       Analyze the following patient cardiovascular and diagnostic metrics to predict the risk of Coronary Artery Disease (CAD).
       
       Patient Profile:
-      - Name: ${patientData.name} (MRN: ${patientData.mrn})
+      - Name: ${patientData.name}
       - Age: ${patientData.age} | Gender: ${patientData.gender}
       - BP: ${patientData.systolicBp}/${patientData.diastolicBp} mmHg
       - Total Cholesterol: ${patientData.cholesterol} mg/dL | HDL: ${patientData.hdl} mg/dL
-      - Comorbidities: Diabetes: ${patientData.diabetes ? 'Yes' : 'No'}, Smoking: ${patientData.smoking ? 'Yes' : 'No'}, Family History: ${patientData.familyHistory ? 'Yes' : 'No'}
+      - Comorbidities: Diabetes: ${patientData.diabetes ? 'Yes' : 'No'}, Hypertension: ${patientData.hypertension ? 'Yes' : 'No'}, Smoking: ${patientData.smoking ? 'Yes' : 'No'}, Family History: ${patientData.familyHistory ? 'Yes' : 'No'}
       
       Diagnostic ECG Parameters:
       - Heart Rate: ${patientData.ecgHeartRate} bpm
@@ -173,6 +174,8 @@ app.post("/api/analyze", async (req, res) => {
 
       Based on these parameters, construct a professional clinical consultation report.
       Ensure you point out the physiological correlations, specifically how the ECG abnormality (e.g. ST segment deviation of ${patientData.ecgStElevation}mm or T-wave inversion) correlates with the Echocardiogram findings (like ${patientData.echoRwma ? 'Regional Wall Motion Abnormalities' : 'absence of localized hypokinesis'} or ejection fraction of ${patientData.echoLvef}%).
+      
+      CRITICAL CONSTRAINT: Do NOT mention "Google", "Gemini", "AI", "model", "assistant", or any technology or software brand. The entire report and recommendations must read as if written directly by a human board-certified cardiologist in a clinical setting.
       
       You must respond strictly with a valid JSON object in this format. No other text, no markdown blockquotes (do NOT wrap in \`\`\`json ... \`\`\`):
       {

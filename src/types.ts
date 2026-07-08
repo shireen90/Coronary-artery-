@@ -1,7 +1,6 @@
 export interface PatientRecord {
   id?: string;
   name: string;
-  mrn: string; // Medical Record Number
   age: number;
   gender: 'Male' | 'Female' | 'Other';
   
@@ -11,6 +10,7 @@ export interface PatientRecord {
   cholesterol: number; // Total Cholesterol in mg/dL
   hdl: number; // HDL in mg/dL
   diabetes: boolean;
+  hypertension: boolean;
   smoking: boolean;
   familyHistory: boolean;
   

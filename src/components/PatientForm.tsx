@@ -1,10 +1,13 @@
 import React, { useState, useTransition } from "react";
 import { PatientRecord } from "../types";
-import { FileHeart, Activity, Star, Eye, ShieldAlert, Sparkles, Wand2 } from "lucide-react";
+import { FileHeart, Activity, Star, Eye, ShieldAlert, Sparkles, Wand2, Heart, Shield, CheckCircle } from "lucide-react";
+import { EcgMonitor } from "./EcgMonitor";
+import { EchoVisualizer } from "./EchoVisualizer";
 
 interface PatientFormProps {
   onSubmit: (data: PatientRecord) => void;
   isAnalyzing: boolean;
+  onChange?: (data: any) => void;
 }
 
 const PRESETS = [
@@ -122,11 +125,10 @@ const PRESETS = [
   }
 ];
 
-export function PatientForm({ onSubmit, isAnalyzing }: PatientFormProps) {
+export function PatientForm({ onSubmit, isAnalyzing, onChange }: PatientFormProps) {
   const [activeTab, setActiveTab] = useState<"demographics" | "ecg" | "echo">("demographics");
   const [formData, setFormData] = useState<Omit<PatientRecord, "id" | "riskScore" | "riskLevel" | "predictedAt">>({
     name: "",
-    mrn: "",
     age: 55,
     gender: "Male",
     systolicBp: 128,
@@ -134,6 +136,7 @@ export function PatientForm({ onSubmit, isAnalyzing }: PatientFormProps) {
     cholesterol: 195,
     hdl: 48,
     diabetes: false,
+    hypertension: false,
     smoking: false,
     familyHistory: false,
     ecgHeartRate: 72,
@@ -150,18 +153,16 @@ export function PatientForm({ onSubmit, isAnalyzing }: PatientFormProps) {
     echoRwma: false
   });
 
-  const generateMrn = () => {
-    const num = Math.floor(1000 + Math.random() * 9000);
-    const code = Math.floor(100 + Math.random() * 900);
-    setFormData(prev => ({ ...prev, mrn: `MRN-${num}-${code}` }));
-  };
+  React.useEffect(() => {
+    if (onChange) {
+      onChange(formData);
+    }
+  }, [formData, onChange]);
 
   const handleApplyPreset = (preset: typeof PRESETS[0]["data"]) => {
-    const num = Math.floor(1000 + Math.random() * 9000);
-    const code = Math.floor(100 + Math.random() * 900);
     setFormData({
       ...preset,
-      mrn: `MRN-${num}-${code}`
+      hypertension: preset.systolicBp >= 140 || preset.diastolicBp >= 90
     });
   };
 
@@ -189,9 +190,6 @@ export function PatientForm({ onSubmit, isAnalyzing }: PatientFormProps) {
       alert("Please specify patient identity");
       return;
     }
-    if (!formData.mrn) {
-      formData.mrn = `MRN-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(100 + Math.random() * 900)}`;
-    }
     
     // Pass complete form state back
     onSubmit({
@@ -200,6 +198,45 @@ export function PatientForm({ onSubmit, isAnalyzing }: PatientFormProps) {
       riskLevel: "Low", // Calculated server-side
       predictedAt: new Date().toISOString()
     });
+  };
+
+  const calculateLocalScore = (data: typeof formData): { score: number; level: "Low" | "Moderate" | "High" | "Critical" } => {
+    let score = 5;
+    if (data.age > 60) score += 10;
+    else if (data.age > 45) score += 5;
+    
+    if (data.gender === "Male") score += 3;
+    if (data.diabetes) score += 10;
+    if (data.hypertension) score += 8;
+    if (data.smoking) score += 8;
+    if (data.familyHistory) score += 6;
+    
+    if (data.systolicBp >= 140) score += 8;
+    if (data.cholesterol >= 220) score += 6;
+
+    // ECG
+    const absSt = Math.abs(data.ecgStElevation || 0);
+    if (absSt >= 1.5) score += 15;
+    else if (absSt >= 0.5) score += 8;
+    
+    if (data.ecgTInversion) score += 8;
+    if (data.ecgArrhythmia === "Atrial Fibrillation") score += 10;
+
+    // Echo
+    const lvef = data.echoLvef || 60;
+    if (lvef < 35) score += 20;
+    else if (lvef < 50) score += 10;
+    
+    if (data.echoRwma) score += 18;
+
+    const finalScore = Math.min(Math.round(score), 99);
+    let level: "Low" | "Moderate" | "High" | "Critical" = "Low";
+    if (finalScore >= 75) level = "Critical";
+    else if (finalScore >= 50) level = "High";
+    else if (finalScore >= 35) level = "Moderate";
+    else level = "Low";
+
+    return { score: finalScore, level };
   };
 
   return (
@@ -267,42 +304,19 @@ export function PatientForm({ onSubmit, isAnalyzing }: PatientFormProps) {
         {/* Tab Content 1: Demographics & Risks */}
         {activeTab === "demographics" && (
           <div className="space-y-4 animate-fadeIn">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[11px] font-mono text-slate-400 uppercase mb-1 font-semibold">
-                  Patient Full Name *
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  required
-                  value={formData.name}
-                  onChange={handleChange}
-                  placeholder="e.g. Marcus Vance"
-                  className="w-full bg-slate-950 border border-slate-850 rounded px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-mono text-slate-400 uppercase mb-1 font-semibold flex justify-between">
-                  <span>Medical Record Number (MRN)</span>
-                  <button
-                    type="button"
-                    onClick={generateMrn}
-                    className="text-[10px] text-sky-400 hover:underline"
-                  >
-                    Auto-Generate
-                  </button>
-                </label>
-                <input
-                  type="text"
-                  name="mrn"
-                  value={formData.mrn}
-                  onChange={handleChange}
-                  placeholder="e.g. MRN-3984-291"
-                  className="w-full bg-slate-950 border border-slate-850 rounded px-3 py-1.5 text-xs font-mono text-slate-300 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+            <div>
+              <label className="block text-[11px] font-mono text-slate-400 uppercase mb-1 font-semibold">
+                Patient Full Name *
+              </label>
+              <input
+                type="text"
+                name="name"
+                required
+                value={formData.name}
+                onChange={handleChange}
+                placeholder="e.g. Marcus Vance"
+                className="w-full bg-slate-950 border border-slate-850 rounded px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-medium"
+              />
             </div>
 
             <div className="grid grid-cols-3 gap-4">
@@ -405,7 +419,7 @@ export function PatientForm({ onSubmit, isAnalyzing }: PatientFormProps) {
               <span className="block text-[11px] font-mono text-slate-400 uppercase mb-2 font-semibold">
                 Anamnesis / Risk Modifiers
               </span>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-950/40 p-3 rounded border border-slate-850">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-950/40 p-3 rounded border border-slate-850">
                 <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
                   <input
                     type="checkbox"
@@ -415,6 +429,17 @@ export function PatientForm({ onSubmit, isAnalyzing }: PatientFormProps) {
                     className="accent-emerald-500 h-4 w-4"
                   />
                   <span>Diabetes Mellitus</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    name="hypertension"
+                    checked={formData.hypertension}
+                    onChange={(e) => handleCheckboxChange("hypertension", e.target.checked)}
+                    className="accent-emerald-500 h-4 w-4"
+                  />
+                  <span>Hypertension</span>
                 </label>
 
                 <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
@@ -663,6 +688,132 @@ export function PatientForm({ onSubmit, isAnalyzing }: PatientFormProps) {
                   <span className="text-[10px] text-slate-500">Highly specific marker for epicardial CAD ischemia in localized coronary branches.</span>
                 </div>
               </label>
+            </div>
+
+            {/* Live assessment dashboard at Step 3 */}
+            <div className="mt-6 border-t border-slate-850 pt-6">
+              <h3 className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
+                Live Clinical Evaluation & Telemetry Preview (Step 3)
+              </h3>
+              
+              <div className="space-y-4">
+                {/* Grid of AI CAD Prediction & Biometrics */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Live AI CAD Prediction */}
+                  {(() => {
+                    const { score, level } = calculateLocalScore(formData);
+                    return (
+                      <div className="bg-slate-950/60 border border-slate-850 p-4 rounded-xl flex flex-col justify-between">
+                        <div>
+                          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest block font-bold">
+                            AI CAD Risk Prediction
+                          </span>
+                          <div className="flex items-baseline gap-2 mt-2">
+                            <span className="text-4xl font-extrabold font-display text-slate-50">{score}%</span>
+                            <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${
+                              level === 'Critical' ? 'bg-rose-950/40 text-rose-400 animate-pulse' :
+                              level === 'High' ? 'bg-amber-950/40 text-amber-400' :
+                              level === 'Moderate' ? 'bg-yellow-950/20 text-yellow-400' :
+                              'bg-emerald-950/40 text-emerald-400'
+                            }`}>
+                              {level.toUpperCase()} RISK
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 font-mono mt-2 leading-relaxed">
+                            Calculated dynamically based on real-time biometrics, hemodynamic readings, ischemic ECG markers, and echocardiographic function inputs.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Patients Biometrics */}
+                  <div className="bg-slate-950/60 border border-slate-850 p-4 rounded-xl space-y-2">
+                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest block font-bold">
+                      Patient Biometric Registry
+                    </span>
+                    <div className="grid grid-cols-2 gap-2 text-xs font-mono pt-1">
+                      <div className="bg-slate-900/40 p-1.5 rounded border border-slate-900/60">
+                        <span className="text-[9px] text-slate-500 block">Age / Sex</span>
+                        <strong className="text-slate-300">{formData.age} Yrs / {formData.gender}</strong>
+                      </div>
+                      <div className="bg-slate-900/40 p-1.5 rounded border border-slate-900/60">
+                        <span className="text-[9px] text-slate-500 block">Diabetes</span>
+                        <strong className={formData.diabetes ? "text-rose-400" : "text-slate-400"}>
+                          {formData.diabetes ? "Yes (Positive)" : "No (Negative)"}
+                        </strong>
+                      </div>
+                      <div className="bg-slate-900/40 p-1.5 rounded border border-slate-900/60">
+                        <span className="text-[9px] text-slate-500 block">Hypertension</span>
+                        <strong className={formData.hypertension ? "text-rose-400" : "text-slate-400"}>
+                          {formData.hypertension ? "Yes (Positive)" : "No (Negative)"}
+                        </strong>
+                      </div>
+                      <div className="bg-slate-900/40 p-1.5 rounded border border-slate-900/60">
+                        <span className="text-[9px] text-slate-500 block">Smoking Status</span>
+                        <strong className={formData.smoking ? "text-rose-400" : "text-slate-400"}>
+                          {formData.smoking ? "Yes (Active)" : "No (None)"}
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Grid of ECG and Echo visualizers */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* ECG wave sweep */}
+                  <div className="bg-slate-950/60 border border-slate-850 p-4 rounded-xl">
+                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest block font-bold mb-2">
+                      ECG Wave Trace Sweep
+                    </span>
+                    <EcgMonitor
+                      heartRate={formData.ecgHeartRate}
+                      stElevation={formData.ecgStElevation}
+                      tInversion={formData.ecgTInversion}
+                      arrhythmia={formData.ecgArrhythmia}
+                      qrsDuration={formData.ecgQrsDuration}
+                      qtInterval={formData.ecgQtInterval}
+                    />
+                  </div>
+
+                  {/* Echo chamber */}
+                  <div className="bg-slate-950/60 border border-slate-850 p-4 rounded-xl">
+                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest block font-bold mb-2">
+                      Echocardiographic Ventricular Chamber
+                    </span>
+                    <EchoVisualizer
+                      lvef={formData.echoLvef}
+                      lvedd={formData.echoLvedd}
+                      septalThickness={formData.echoSeptalThickness}
+                      mitralEtoA={formData.echoMitralEtoA}
+                      aorticJetVelocity={formData.echoAorticJetVelocity}
+                      rwma={formData.echoRwma}
+                    />
+                  </div>
+                </div>
+
+                {/* Wall Motion Description of this particular patient */}
+                <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-xl flex items-start gap-2.5">
+                  <Shield className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+                  <div className="w-full">
+                    <span className="text-[10px] font-mono text-slate-400 uppercase block font-bold">
+                      Wall Motion Analysis Summary
+                    </span>
+                    <p className="text-[11px] text-slate-300 font-mono mt-1 leading-relaxed">
+                      {formData.echoRwma ? (
+                        <span className="text-rose-400">
+                          <strong>RWMA POSITIVE:</strong> Segmental hypokinesis/akinesis detected. Ventricular chamber wall shows localized contraction deficit during systole (typical localized coronary perfusion deficit of LAD or RCA branches).
+                        </span>
+                      ) : (
+                        <span className="text-emerald-400">
+                          <strong>RWMA NEGATIVE:</strong> Symmetrical global ventricular contractility. No regional wall motion abnormalities detected. Global perfusion of the epicardium is stable.
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

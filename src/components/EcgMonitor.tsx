@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useId } from "react";
 
 interface EcgMonitorProps {
   heartRate: number;
@@ -19,11 +19,17 @@ export function EcgMonitor({
 }: EcgMonitorProps) {
   const [offset, setOffset] = useState(0);
   const requestRef = useRef<number | null>(null);
+  const clipId = useId();
+  const gradId = useId();
 
-  // Animation loop to simulate the sweep line or wave motion
+  // Animation loop to simulate the sweep line or wave motion with realistic speed (approx. 25 units/second or 0.05 units/ms)
   useEffect(() => {
-    const animate = () => {
-      setOffset((prev) => (prev + 0.6) % 300);
+    let lastTime = performance.now();
+    const animate = (timestamp: number) => {
+      const delta = timestamp - lastTime;
+      lastTime = timestamp;
+      // Sweep across 500 units slowly and smoothly (approx. 10 seconds per full sweep)
+      setOffset((prev) => (prev + delta * 0.05) % 500);
       requestRef.current = requestAnimationFrame(animate);
     };
     requestRef.current = requestAnimationFrame(animate);
@@ -32,10 +38,8 @@ export function EcgMonitor({
     };
   }, []);
 
-  // Generate SVG path for 3 cardiac cycles based on patient properties
+  // Generate SVG path where the heartbeat waveform and interval are physiologically modeled
   const generateEcgPath = (width: number, height: number): string => {
-    const cycles = 3;
-    const points: string[] = [];
     const centerY = height / 2;
     
     // Scale factors
@@ -43,76 +47,127 @@ export function EcgMonitor({
     const tMult = tInversion ? -1 : 1;
     const isAfib = arrhythmia === "Atrial Fibrillation";
     
-    points.push(`M 0 ${centerY}`);
+    // Calibrate horizontal units per millisecond (based on sweep speed of 0.05 units/ms)
+    const scaleX = 0.05; 
+    const hr = Math.max(30, Math.min(220, heartRate));
+    
+    // R-R interval in units
+    const rrInterval = (60000 / hr) * scaleX;
+    
+    // Generate deterministic R-peak positions across the full width
+    const rPeaks: number[] = [];
+    let currentR = 30; // start first R peak at 30 units
+    rPeaks.push(currentR);
+    
+    for (let i = 0; i < 50; i++) {
+      let interval = rrInterval;
+      if (isAfib) {
+        // AFib: irregularly irregular R-R intervals
+        const noise = Math.sin(i * 1.7) * 0.22 + Math.cos(i * 3.1) * 0.08;
+        interval = rrInterval * (1 + noise);
+      }
+      currentR += interval;
+      rPeaks.push(currentR);
+      if (currentR > width + 100) break;
+    }
+    
+    const points: string[] = [];
+    let isFirst = true;
 
-    const segmentWidth = width / cycles;
-    for (let c = 0; c < cycles; c++) {
-      const startX = c * segmentWidth;
+    // Draw continuous waveform across the screen horizontal coordinates
+    for (let x = 0; x < width; x++) {
+      const globalX = x;
       
-      // AFib introduces baseline fibrillatory oscillations (f-waves) and irregular spacing
-      const afibNoise = (x: number) => {
-        if (!isAfib) return 0;
-        return Math.sin(x * 0.5) * 3 + Math.cos(x * 1.1) * 2;
-      };
-
-      // Define standard interval fractions
-      const pStart = 0.15 * segmentWidth;
-      const pPeak = 0.20 * segmentWidth;
-      const pEnd = 0.25 * segmentWidth;
-      
-      const qStart = 0.35 * segmentWidth;
-      const qPeak = 0.38 * segmentWidth;
-      
-      const rPeak = 0.41 * segmentWidth;
-      const sPeak = 0.44 * segmentWidth;
-      
-      const stStart = 0.48 * segmentWidth;
-      const stEnd = 0.62 * segmentWidth;
-      
-      const tPeak = 0.72 * segmentWidth;
-      const tEnd = 0.82 * segmentWidth;
-
-      // Draw segment points
-      for (let x = 0; x < segmentWidth; x++) {
-        const globalX = startX + x;
-        let y = centerY;
-
-        // Apply AFib baseline tremor if present
-        y += afibNoise(globalX);
-
-        if (x >= pStart && x <= pEnd) {
-          // P Wave (frequently absent or replaced by f-waves in AFib)
-          if (isAfib) {
-            y += Math.sin(globalX * 1.5) * 3;
-          } else {
-            const pProgress = (x - pStart) / (pEnd - pStart);
-            y -= Math.sin(pProgress * Math.PI) * 12;
-          }
-        } else if (x > qStart && x <= qPeak) {
-          // Q Wave
-          const qProgress = (x - qStart) / (qPeak - qStart);
-          y += qProgress * 10;
-        } else if (x > qPeak && x <= rPeak) {
-          // R Wave peak (widened slightly if QRS duration is high)
-          const rProgress = (x - qPeak) / (rPeak - qPeak);
-          const widthFactor = qrsDuration > 120 ? 1.3 : 1.0;
-          y -= rProgress * 65 * widthFactor;
-        } else if (x > rPeak && x <= sPeak) {
-          // S Wave
-          const sProgress = (x - rPeak) / (sPeak - rPeak);
-          y += sProgress * 25;
-        } else if (globalX >= (startX + stStart) && globalX <= (startX + stEnd)) {
-          // ST Segment (Shifted up or down)
-          y -= stShift;
-        } else if (x > stEnd && x <= tEnd) {
-          // T Wave
-          const tProgress = (x - stEnd) / (tEnd - stEnd);
-          const baseT = Math.sin(tProgress * Math.PI) * 18 * tMult;
-          // Transition from ST elevation level to normal
-          const stInterpolation = (1 - tProgress) * stShift;
-          y -= (baseT + stInterpolation);
+      // Find the nearest R-peak to determine wave morphology at this position
+      let nearestR = rPeaks[0];
+      let minDist = Math.abs(globalX - rPeaks[0]);
+      for (let i = 1; i < rPeaks.length; i++) {
+        const dist = Math.abs(globalX - rPeaks[i]);
+        if (dist < minDist) {
+          minDist = dist;
+          nearestR = rPeaks[i];
         }
+      }
+      
+      const dx = globalX - nearestR;
+      // Convert distance in units to time in milliseconds relative to R-peak
+      const dt = dx / scaleX;
+      
+      // Heart rate dependent duration scaling factor (Bazett's-like formula to compress waves at high HR)
+      const rateFactor = Math.sqrt(60 / hr);
+      
+      const currentQrs = qrsDuration * rateFactor;
+      
+      let y = centerY;
 
+      // Apply AFib baseline fibrillatory ("f") waves if present
+      if (isAfib) {
+        y += Math.sin(globalX * 0.45) * 2.8 + Math.cos(globalX * 0.95) * 1.2;
+      }
+
+      // Physiological Waveform Timings (relative to R-peak at 0 ms)
+      const pStart = -160 * rateFactor;
+      const pEnd = -70 * rateFactor;
+      
+      const qrsStart = -currentQrs / 2;
+      const qPeakTime = -currentQrs / 4;
+      const rPeakTime = 0;
+      const sPeakTime = currentQrs / 4;
+      const qrsEnd = currentQrs / 2;
+      
+      const stStart = qrsEnd;
+      const stEnd = qrsEnd + 80 * rateFactor;
+      
+      const tStart = stEnd;
+      const tEnd = qrsEnd + 260 * rateFactor;
+
+      if (!isAfib && dt >= pStart && dt <= pEnd) {
+        // P Wave: elegant smooth half-sine curve
+        const pProgress = (dt - pStart) / (pEnd - pStart);
+        const pHeight = 7; 
+        y -= Math.sin(pProgress * Math.PI) * pHeight;
+      } else if (dt >= qrsStart && dt < qPeakTime) {
+        // Q Wave: brief small dip
+        const qProgress = (dt - qrsStart) / (qPeakTime - qrsStart);
+        const qDepth = 6;
+        y += qProgress * qDepth;
+      } else if (dt >= qPeakTime && dt < rPeakTime) {
+        // R Wave: tall sharp upstroke
+        const rProgress = (dt - qPeakTime) / (rPeakTime - qPeakTime);
+        const qDepth = 6;
+        const rHeight = 55; 
+        y += qDepth - rProgress * (qDepth + rHeight);
+      } else if (dt >= rPeakTime && dt < sPeakTime) {
+        // S Wave: rapid downstroke below baseline
+        const sProgress = (dt - rPeakTime) / (sPeakTime - rPeakTime);
+        const rHeight = 55;
+        const sDepth = 12;
+        y += -rHeight + sProgress * (rHeight + sDepth);
+      } else if (dt >= sPeakTime && dt < qrsEnd) {
+        // S-to-ST return: transition to ST level
+        const stProgress = (dt - sPeakTime) / (qrsEnd - sPeakTime);
+        const sDepth = 12;
+        y += sDepth - stProgress * (sDepth + stShift);
+      } else if (dt >= stStart && dt < stEnd) {
+        // ST Segment: flat line at shift level
+        y -= stShift;
+      } else if (dt >= tStart && dt <= tEnd) {
+        // T Wave: smooth rounded repolarization curve
+        const tProgress = (dt - tStart) / (tEnd - tStart);
+        const tHeight = 14 * tMult;
+        const baseT = Math.sin(tProgress * Math.PI) * tHeight;
+        const stInterpolation = (1 - tProgress) * stShift;
+        y -= (baseT + stInterpolation);
+      }
+
+      // Add high-frequency electrode contact micro-tremor noise (highly realistic clinical look)
+      const liveJitter = Math.sin(globalX * 1.8) * 0.25 + Math.cos(globalX * 3.4) * 0.1;
+      y += liveJitter;
+
+      if (isFirst) {
+        points.push(`M ${globalX} ${y}`);
+        isFirst = false;
+      } else {
         points.push(`L ${globalX} ${y}`);
       }
     }
@@ -123,7 +178,7 @@ export function EcgMonitor({
   const pathString = generateEcgPath(500, 160);
 
   // High contrast medical styling for alert state
-  const isCritical = Math.abs(stElevation) >= 1.5 || arrhythmia === "Atrial Fibrillation" && heartRate > 100;
+  const isCritical = Math.abs(stElevation) >= 1.5 || (arrhythmia === "Atrial Fibrillation" && heartRate > 100);
   const isHigh = Math.abs(stElevation) >= 0.8 || tInversion || heartRate > 100;
   const themeColor = isCritical 
     ? "text-rose-500 stroke-rose-500" 
@@ -136,6 +191,17 @@ export function EcgMonitor({
     : isHigh 
       ? "shadow-amber-950/40 border-amber-900/50" 
       : "shadow-emerald-950/30 border-emerald-900/50";
+
+  // Calculate sweep-erase visible zones (Continuous cathode-ray trace)
+  const eraseWidth = 35;
+  const showRects: { x: number; width: number }[] = [];
+  if (offset + eraseWidth <= 500) {
+    showRects.push({ x: 0, width: offset });
+    showRects.push({ x: offset + eraseWidth, width: 500 - (offset + eraseWidth) });
+  } else {
+    const wrappedEnd = (offset + eraseWidth) % 500;
+    showRects.push({ x: wrappedEnd, width: offset - wrappedEnd });
+  }
 
   return (
     <div className={`relative bg-slate-950 rounded-xl border ${glowColor} overflow-hidden shadow-2xl p-4 font-mono transition-all duration-300`}>
@@ -164,7 +230,7 @@ export function EcgMonitor({
         </div>
         <div className="flex items-center gap-4">
           <span>FILTER: LPF 40Hz</span>
-          <span>50 mm/s</span>
+          <span>25 mm/s</span>
           <span>10 mm/mV</span>
         </div>
       </div>
@@ -176,7 +242,7 @@ export function EcgMonitor({
           className="w-full h-full overflow-visible"
           preserveAspectRatio="none"
         >
-          {/* Static wave trace */}
+          {/* Real Sweep wave trace using clipPath */}
           <path
             d={pathString}
             fill="none"
@@ -184,33 +250,42 @@ export function EcgMonitor({
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
+            clipPath={`url(#${clipId})`}
           />
 
           {/* Sweeper sweep block mimicking fluorescent cathode ray tubes */}
           <rect
-            x={offset}
+            x={offset - 40}
             y="0"
             width="40"
             height="160"
-            fill="url(#sweepGrad)"
+            fill={`url(#${gradId})`}
             className="pointer-events-none opacity-40 mix-blend-plus-lighter"
           />
 
           <defs>
-            <linearGradient id="sweepGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#020617" stopOpacity="1" />
-              <stop offset="90%" stopColor="#020617" stopOpacity="0" />
-              <stop offset="100%" stopColor="#10b981" stopOpacity="0.4" />
+            <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#020617" stopOpacity="0" />
+              <stop offset="100%" stopColor={isCritical ? "#f43f5e" : isHigh ? "#f59e0b" : "#10b981"} stopOpacity="0.4" />
             </linearGradient>
+            <clipPath id={clipId}>
+              {showRects.map((r, idx) => (
+                <rect key={idx} x={r.x} y="0" width={r.width} height="160" />
+              ))}
+            </clipPath>
           </defs>
         </svg>
 
-        {/* Sweep line highlight */}
+        {/* Sweep line highlight matching alert states */}
         <div 
-          className="absolute top-0 bottom-0 w-[2px] bg-emerald-400 shadow-[0_0_12px_#10b981] pointer-events-none transition-transform duration-75"
+          className={`absolute top-0 bottom-0 w-[2px] pointer-events-none transition-transform duration-75 ${
+            isCritical ? 'bg-rose-500 shadow-[0_0_12px_#f43f5e]' :
+            isHigh ? 'bg-amber-500 shadow-[0_0_12px_#f59e0b]' :
+            'bg-emerald-400 shadow-[0_0_12px_#34d399]'
+          }`}
           style={{ 
-            left: `${(offset / 300) * 100}%`,
-            opacity: offset > 295 ? 0 : 0.8
+            left: `${(offset / 500) * 100}%`,
+            opacity: offset > 495 ? 0 : 0.8
           }}
         />
       </div>

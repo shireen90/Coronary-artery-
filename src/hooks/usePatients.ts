@@ -48,13 +48,13 @@ export function usePatients() {
           const parsed = JSON.parse(localData);
           const mapped = parsed.map((item: any, idx: number) => ({
             ...item,
-            id: item.id || `fallback-${item.mrn || idx}`
+            id: item.id || `fallback-${idx}`
           }));
           setPatients(mapped);
         } catch (e) {
           const initialWithIds = INITIAL_PATIENTS.map((p, idx) => ({
             ...p,
-            id: `fallback-${p.mrn || idx}`
+            id: `fallback-${idx}`
           }));
           setPatients(initialWithIds);
           localStorage.setItem("cad_patients", JSON.stringify(initialWithIds));
@@ -62,7 +62,7 @@ export function usePatients() {
       } else {
         const initialWithIds = INITIAL_PATIENTS.map((p, idx) => ({
           ...p,
-          id: `fallback-${p.mrn || idx}`
+          id: `fallback-${idx}`
         }));
         setPatients(initialWithIds);
         localStorage.setItem("cad_patients", JSON.stringify(initialWithIds));

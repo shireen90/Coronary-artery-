@@ -3,7 +3,6 @@ import { PatientRecord, HospitalPortalInfo } from "./types";
 export const INITIAL_PATIENTS: PatientRecord[] = [
   {
     name: "Marcus Vance",
-    mrn: "MRN-3984-291",
     age: 67,
     gender: "Male",
     systolicBp: 158,
@@ -11,6 +10,7 @@ export const INITIAL_PATIENTS: PatientRecord[] = [
     cholesterol: 245,
     hdl: 38,
     diabetes: true,
+    hypertension: true,
     smoking: true,
     familyHistory: true,
     
@@ -43,49 +43,7 @@ export const INITIAL_PATIENTS: PatientRecord[] = [
     ]
   },
   {
-    name: "Eleanor Fitzgerald",
-    mrn: "MRN-7215-402",
-    age: 72,
-    gender: "Female",
-    systolicBp: 142,
-    diastolicBp: 88,
-    cholesterol: 215,
-    hdl: 46,
-    diabetes: false,
-    smoking: false,
-    familyHistory: true,
-    
-    // ECG: Mild rhythm anomaly
-    ecgHeartRate: 104,
-    ecgQtInterval: 435,
-    ecgStElevation: -0.6,
-    ecgTInversion: false,
-    ecgQrsDuration: 98,
-    ecgArrhythmia: "Atrial Fibrillation",
-    
-    // Echo: Mild systolic dysfunction
-    echoLvef: 48,
-    echoLvedd: 52,
-    echoSeptalThickness: 11,
-    echoMitralEtoA: 0.8,
-    echoAorticJetVelocity: 1.8,
-    echoRwma: false,
-    
-    riskScore: 58,
-    riskLevel: "High",
-    predictedAt: new Date(Date.now() - 3600000 * 24).toISOString(), // 1 day ago
-    clinicalSummary: "Elderly female presenting with new-onset Atrial Fibrillation with rapid ventricular response (HR 104 bpm). ECG demonstrates minor non-specific ST-segment depression in inferior leads. Echocardiography shows mildly depressed left ventricular systolic function (LVEF 48%) without regional wall motion abnormalities, but with signs of mild left atrial enlargement. The clinical combination of atrial fibrillation and age yields a high overall cardiovascular risk state.",
-    recommendations: [
-      "Refer to electrophysiology or general cardiology for rate control strategy and anticoagulation assessment (CHA2DS2-VASc score of 4 suggests oral anticoagulation).",
-      "Begin rate control with beta-blockers or non-dihydropyridine calcium channel blockers.",
-      "Schedule a myocardial perfusion scan (Nuclear Stress Test) to evaluate for silent CAD.",
-      "Manage blood pressure aggressively to target systolic < 130 mmHg.",
-      "Advise dietary optimization and mild cardiovascular exercise program under clinical supervision."
-    ]
-  },
-  {
     name: "Dr. Richard Chen",
-    mrn: "MRN-1108-984",
     age: 51,
     gender: "Male",
     systolicBp: 134,
@@ -93,6 +51,7 @@ export const INITIAL_PATIENTS: PatientRecord[] = [
     cholesterol: 198,
     hdl: 52,
     diabetes: false,
+    hypertension: true,
     smoking: false,
     familyHistory: false,
     
@@ -125,7 +84,6 @@ export const INITIAL_PATIENTS: PatientRecord[] = [
   },
   {
     name: "Sienna Martinez",
-    mrn: "MRN-8941-098",
     age: 29,
     gender: "Female",
     systolicBp: 112,
@@ -133,6 +91,7 @@ export const INITIAL_PATIENTS: PatientRecord[] = [
     cholesterol: 165,
     hdl: 58,
     diabetes: false,
+    hypertension: false,
     smoking: false,
     familyHistory: false,
     
