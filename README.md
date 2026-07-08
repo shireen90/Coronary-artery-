@@ -6,7 +6,7 @@
 
 This contains everything you need to run your app locally.
 
-View your app in AI Studio: https://CAD/apps/39da857b-839d-42cb-ac43-03937d9c2abd
+View your app : https://CAD/apps/39da857b-839d-42cb-ac43-03937d9c2abd
 
 ## Run Locally
 
